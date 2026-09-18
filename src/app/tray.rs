@@ -62,7 +62,7 @@ where
 
     let _tray = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
-        .with_title("音乐频谱 · Music Spectrum")
+        .with_title("LumaWave · 音乐频谱")
         .with_icon(build_icon())
         .build()
         .map_err(|e| anyhow::anyhow!("创建系统托盘失败: {e}"))?;

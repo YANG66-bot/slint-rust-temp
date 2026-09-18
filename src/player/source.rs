@@ -199,7 +199,7 @@ mod tests {
     #[test]
     fn playback_thread_processes_decoded_packets() {
         // 0.05 秒 WAV：验证 run_file_playback 链路（解码 → 混缩 → 重采样 → 写入）
-        let dir = std::env::temp_dir().join("music_spectrum_player_source_test");
+        let dir = std::env::temp_dir().join("lumawave_player_source_test");
         std::fs::create_dir_all(&dir).expect("创建临时目录");
         let path = dir.join("short_tone.wav");
         let samples: Vec<f32> = (0..2205)

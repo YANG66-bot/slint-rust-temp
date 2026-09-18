@@ -1,9 +1,9 @@
 //! 用户配置：加载、保存、校验。
 //!
 //! 配置文件为 JSON，位于：
-//! - Windows: `%APPDATA%\music-spectrum\settings.json`
-//! - macOS:   `~/Library/Application Support/music-spectrum/settings.json`
-//! - Linux:   `$XDG_CONFIG_HOME/music-spectrum/settings.json`（或 `~/.config/...`）
+//! - Windows: `%APPDATA%\lumawave\settings.json`
+//! - macOS:   `~/Library/Application Support/lumawave/settings.json`
+//! - Linux:   `$XDG_CONFIG_HOME/lumawave/settings.json`（或 `~/.config/...`）
 //!
 //! 所有 DSP / 视觉参数集中于此，禁止把魔法数字散落在业务代码里。
 
@@ -508,19 +508,19 @@ pub fn parse_hex_color(value: &str) -> Option<[u8; 3]> {
 /// 配置目录（平台相关）。
 fn config_dir() -> Option<PathBuf> {
     if cfg!(target_os = "windows") {
-        std::env::var_os("APPDATA").map(|v| PathBuf::from(v).join("music-spectrum"))
+        std::env::var_os("APPDATA").map(|v| PathBuf::from(v).join("lumawave"))
     } else if cfg!(target_os = "macos") {
         std::env::var_os("HOME").map(|v| {
             PathBuf::from(v)
                 .join("Library")
                 .join("Application Support")
-                .join("music-spectrum")
+                .join("lumawave")
         })
     } else {
         std::env::var_os("XDG_CONFIG_HOME")
             .map(PathBuf::from)
             .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
-            .map(|p| p.join("music-spectrum"))
+            .map(|p| p.join("lumawave"))
     }
 }
 
@@ -615,7 +615,7 @@ mod tests {
 
     #[test]
     fn load_missing_file_returns_error() {
-        let path = std::env::temp_dir().join("music_spectrum_missing_settings.json");
+        let path = std::env::temp_dir().join("lumawave_missing_settings.json");
         let result = Settings::load_from(&path);
         assert!(result.is_err());
     }

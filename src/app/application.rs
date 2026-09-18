@@ -63,7 +63,7 @@ pub fn run() -> anyhow::Result<()> {
     )));
     let init = live.read().unwrap().clone();
     tracing::info!(
-        "Music Spectrum 启动 | 展示柱数={} 分析分辨率={} FFT={} 帧率={}Hz 音源=系统音频环回",
+        "LumaWave 启动 | 展示柱数={} 分析分辨率={} FFT={} 帧率={}Hz 音源=系统音频环回",
         init.bar_count,
         spectrum.bar_count,
         spectrum.fft_size,

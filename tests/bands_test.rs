@@ -2,8 +2,8 @@
 //!
 //! 验证低频/高频落点、覆盖无空洞、幅度谱取值长度一致。
 
-use music_spectrum::config::Settings;
-use music_spectrum::spectrum::BandMapper;
+use lumawave::config::Settings;
+use lumawave::spectrum::BandMapper;
 
 const SAMPLE_RATE: u32 = 44100;
 

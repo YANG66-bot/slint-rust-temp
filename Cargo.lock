@@ -2709,6 +2709,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
+name = "lumawave"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cpal",
+ "crossbeam-channel",
+ "rfd",
+ "rustfft",
+ "rustydialogs",
+ "serde",
+ "serde_json",
+ "slint",
+ "slint-build",
+ "symphonia",
+ "thiserror 2.0.20",
+ "tracing",
+ "tracing-subscriber",
+ "tray-icon",
+ "windows 0.54.0",
+]
+
+[[package]]
 name = "lyon_algorithms"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2891,28 +2913,6 @@ name = "multiversion_no_op"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
-
-[[package]]
-name = "music-spectrum"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cpal",
- "crossbeam-channel",
- "rfd",
- "rustfft",
- "rustydialogs",
- "serde",
- "serde_json",
- "slint",
- "slint-build",
- "symphonia",
- "thiserror 2.0.20",
- "tracing",
- "tracing-subscriber",
- "tray-icon",
- "windows 0.54.0",
-]
 
 [[package]]
 name = "naga"

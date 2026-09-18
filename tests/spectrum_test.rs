@@ -1,12 +1,12 @@
 //! 频谱流水线集成测试：PCM → FFT → 频段 → 归一化 → 平滑 → 峰值。
 //!
-//! 通过公共 API（`music_spectrum::spectrum::AnalysisPipeline`）驱动，
+//! 通过公共 API（`lumawave::spectrum::AnalysisPipeline`）驱动，
 //! 验证真实数据流的端到端行为。
 
-use music_spectrum::audio::buffer::PcmRingBuffer;
-use music_spectrum::audio::source::TestSignalGenerator;
-use music_spectrum::config::Settings;
-use music_spectrum::spectrum::{AnalysisPipeline, AnalyzerHandle, SpectrumFrame};
+use lumawave::audio::buffer::PcmRingBuffer;
+use lumawave::audio::source::TestSignalGenerator;
+use lumawave::config::Settings;
+use lumawave::spectrum::{AnalysisPipeline, AnalyzerHandle, SpectrumFrame};
 use std::f32::consts::TAU;
 use std::sync::Arc;
 use std::time::Duration;
@@ -30,7 +30,7 @@ fn sine(freq: f32, count: usize) -> Vec<f32> {
 fn band_containing(freq: f32) -> usize {
     // 借助同配置的 BandMapper 查询频段边界
     let settings = Settings::default();
-    let mapper = music_spectrum::spectrum::BandMapper::new(&settings.spectrum, SAMPLE_RATE);
+    let mapper = lumawave::spectrum::BandMapper::new(&settings.spectrum, SAMPLE_RATE);
     for i in 0..mapper.bar_count() {
         let (lo, hi) = mapper.band_edges_hz(i);
         if freq >= lo && freq < hi {

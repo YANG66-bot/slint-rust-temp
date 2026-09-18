@@ -1,6 +1,6 @@
-# 音乐频谱 · Music Spectrum
+# LumaWave
 
-基于 **Rust + Slint** 的桌面实时音乐频谱可视化应用。
+基于 **Rust + Slint** 的桌面实时音乐频谱可视化应用，让音乐以光波的形态浮在桌面上。
 
 底部细线型频谱：88 根柱体（粉 → 浅粉 → 天蓝 → 浅紫 → 青五色渐变）、
 轻微辉光、Peak 亮点、倒影与底部基线，整体轻盈融入背景；
@@ -55,7 +55,7 @@ PCM → 单声道 → 加窗 → FFT(2048) → 幅度 → 对数频段 → dB �
 
 ## 配置
 
-配置文件位于 `%APPDATA%\music-spectrum\settings.json`（Windows），
+配置文件位于 `%APPDATA%\lumawave\settings.json`（Windows），
 首次运行自动生成；所有 DSP / 视觉参数均可调整并在加载时校验夹取：
 
 - `audio`：音源类型、音量
@@ -69,7 +69,7 @@ PCM → 单声道 → 加窗 → FFT(2048) → 幅度 → 对数频段 → dB �
 默认级别 `info`，通过 `RUST_LOG` 覆盖：
 
 ```sh
-RUST_LOG=music_spectrum=debug cargo run
+RUST_LOG=lumawave=debug cargo run
 ```
 
 ## 许可证

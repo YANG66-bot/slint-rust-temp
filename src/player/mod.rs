@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn play_wav_file_end_to_end() {
         // 0.1 秒 440Hz 正弦 WAV，走完整链路：play → 解码线程 → 环形缓冲 → EOF
-        let dir = std::env::temp_dir().join("music_spectrum_player_test");
+        let dir = std::env::temp_dir().join("lumawave_player_test");
         std::fs::create_dir_all(&dir).expect("创建临时目录");
         let path = dir.join("tone_440.wav");
         let samples: Vec<f32> = (0..4410)

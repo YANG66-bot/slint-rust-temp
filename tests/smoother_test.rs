@@ -1,6 +1,6 @@
 //! 平滑与峰值保持集成测试：上升快/下降慢/峰值缓降的视觉动力学。
 
-use music_spectrum::spectrum::{PeakHold, SpectrumSmoother};
+use lumawave::spectrum::{PeakHold, SpectrumSmoother};
 
 /// 用 `frames` 帧把目标值 `target` 从 0 推进到稳态（attack=1 直接到位）。
 fn settle(attack: f32, release: f32, target: f32, frames: usize) -> SpectrumSmoother {

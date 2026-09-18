@@ -1,8 +1,8 @@
 [package]
-name = "music-spectrum"
+name = "lumawave"
 version = "0.1.0"
 edition = "2024"
-description = "基于 Rust + Slint 的桌面实时音乐频谱可视化应用"
+description = "LumaWave：基于 Rust + Slint 的桌面实时音乐频谱可视化应用"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

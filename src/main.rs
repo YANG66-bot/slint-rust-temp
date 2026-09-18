@@ -5,6 +5,6 @@
 //! 所有业务逻辑位于库模块中。
 
 fn main() -> anyhow::Result<()> {
-    music_spectrum::init_logging();
-    music_spectrum::app::application::run()
+    lumawave::init_logging();
+    lumawave::app::application::run()
 }

@@ -1,4 +1,4 @@
-//! music-spectrum：基于 Rust + Slint 的桌面实时音乐频谱可视化应用。
+//! LumaWave：基于 Rust + Slint 的桌面实时音乐频谱可视化应用。
 //!
 //! 模块划分（职责隔离）：
 //! - [`error`]：统一错误类型（thiserror）
@@ -27,7 +27,7 @@ pub mod visualizer;
 /// 初始化 tracing 日志系统。
 ///
 /// 默认级别 `info`，可通过 `RUST_LOG` 环境变量覆盖
-/// （例如 `RUST_LOG=music_spectrum=debug`）。
+/// （例如 `RUST_LOG=lumawave=debug`）。
 pub fn init_logging() {
     use tracing_subscriber::EnvFilter;
 
