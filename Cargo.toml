@@ -1,12 +1,33 @@
 [package]
-name = "slint-rust-template"
+name = "music-spectrum"
 version = "0.1.0"
 edition = "2024"
+description = "基于 Rust + Slint 的桌面实时音乐频谱可视化应用"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# UI 框架：声明式 .slint 标记 + Rust 绑定（窗口/渲染/线程安全属性/Timer）
 slint = "1.16.1"
+# FFT：频谱分析的傅里叶变换（FftPlanner 复用，scratch 缓冲复用避免每帧分配）
+rustfft = "6.2"
+# 跨平台音频设备抽象（WASAPI/CoreAudio/ALSA）：输出播放与麦克风采集
+cpal = "0.15"
+# 纯 Rust 音频解码器（按需启用容器/编解码 feature：MP3、WAV、FLAC、OGG/Vorbis）
+symphonia = { version = "0.5", features = ["mp3", "wav", "flac", "ogg", "vorbis"] }
+# 线程安全通道：分析线程 -> UI 线程传递频谱状态（owned message，避免共享可变状态）
+crossbeam-channel = "0.5"
+# 配置持久化（settings.json 序列化）
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 错误处理：底层模块用 thiserror 定义明确错误；应用层统一 anyhow
+thiserror = "2"
+anyhow = "1"
+# 结构化日志（替代 println!）
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# 原生"打开文件"对话框：Slint 无内置文件选择器，加载本地音频必需
+rfd = "0.15"
 
 [build-dependencies]
 slint-build = "1.16.1"

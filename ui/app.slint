@@ -1,0 +1,34 @@
+// 根窗口：无边框 + 全透明的桌面频谱挂件。
+//
+// 窗口只承载频谱本身（粉青渐变柱体 + 峰点 + 倒影 + 基线），
+// 无标题、无按钮、无面板底色——直接浮在桌面壁纸上。
+// 播放/音源控制能力保留在 Rust 侧（player 模块 + audio.source 配置），
+// 不暴露 UI 入口。
+import { MainPage } from "pages/main_page.slint";
+import { SpectrumBarData } from "components/spectrum.slint";
+
+export component AppWindow inherits Window {
+    title: "音乐频谱 · Music Spectrum";
+    no-frame: true;
+    background: transparent;
+    preferred-width: 800px;
+    preferred-height: 120px;
+    min-width: 320px;
+    min-height: 90px;
+    // 无边框窗口的边缘缩放热区宽度
+    resize-border-width: 6px;
+
+    // 频谱数据模型（Rust 端 VecModel 增量写入）
+    in-out property <[SpectrumBarData]> bars: [];
+    // 视觉开关（Rust 端按配置写入）
+    in-out property <bool> show-reflection: true;
+    in-out property <bool> show-baseline: true;
+
+    MainPage {
+        width: 100%;
+        height: 100%;
+        bars: root.bars;
+        show-reflection: root.show-reflection;
+        show-baseline: root.show-baseline;
+    }
+}

@@ -1,0 +1,25 @@
+// 主页：纯频谱层——直接撑满透明窗口，浮在桌面壁纸上。
+//
+// 仅保留粉青渐变频谱柱、顶部峰点、倒影与基线；
+// 无任何文本、按钮或面板底色。
+import { Spectrum, SpectrumBarData } from "../components/spectrum.slint";
+
+export component MainPage inherits Rectangle {
+    // 频谱数据模型（由 AppWindow 透传，Rust 端写入）
+    in property <[SpectrumBarData]> bars: [];
+    // 视觉开关（透传至 Spectrum）
+    in property <bool> show-reflection: true;
+    in property <bool> show-baseline: true;
+
+    width: 100%;
+    height: 100%;
+    background: transparent;
+
+    Spectrum {
+        width: 100%;
+        height: 100%;
+        bars: root.bars;
+        show-reflection: root.show-reflection;
+        show-baseline: root.show-baseline;
+    }
+}

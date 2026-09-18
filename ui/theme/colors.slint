@@ -1,0 +1,18 @@
+// 全局调色板。
+//
+// 频谱五色渐变（粉 → 浅粉 → 天蓝 → 浅紫 → 青）与参考视觉稿一致。
+// 频谱柱的逐柱渐变色由 Rust 端（visualizer::mapper）依据配置调色板
+// 计算后写入模型数据；此处的常量仅用于基线等静态元素，
+// 避免把颜色散落在各个组件文件中。
+
+export global Palette {
+    // 频谱渐变基准色（与 config 默认调色板保持一致）
+    out property <color> pink: #F8AFDB;
+    out property <color> light-pink: #F8A3C8;
+    out property <color> sky-blue: #87CEEB;
+    out property <color> lavender: #D8BFDB;
+    out property <color> cyan: #00FFFF;
+
+    // 基线（频谱底部细线）
+    out property <color> baseline: #9FE8FF;
+}

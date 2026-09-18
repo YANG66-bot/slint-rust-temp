@@ -1,0 +1,35 @@
+// 尺寸与视觉常量（逻辑像素，Slint 自动处理高 DPI 缩放）。
+//
+// 数值参考所提供的桌面音乐可视化组件截图：
+// 柱宽比 0.60、圆角比 0.45、横线厚度 3px、横线不透明度 0.25、
+// 启用倒影与横线、整体透明度柔和、Glow 轻微。
+
+export global Metrics {
+    // 频谱区域
+    out property <length> spectrum-min-bar-height: 2px; // 柱体最小可见高度
+    out property <length> peak-height: 3px;             // Peak 指示条高度
+    out property <length> peak-gap: 4px;                // Peak 与柱顶的间距
+
+    // 柱体几何比例
+    out property <float> bar-width-ratio: 0.60;
+    out property <float> bar-roundness: 0.45;
+
+    // 基线
+    out property <length> baseline-height: 3px;
+    out property <float> baseline-opacity: 0.25;
+
+    // 倒影
+    out property <float> reflection-ratio: 0.30;   // 倒影高度 / 主频谱高度
+    out property <float> reflection-opacity: 0.22;
+
+    // 透明度（整体轻盈、融入背景）
+    out property <float> bar-opacity: 0.78;
+    out property <float> peak-opacity: 0.95;
+    out property <float> master-opacity: 0.92;
+
+    // Glow（轻微，不做霓虹爆炸；底层辉光柱参数）
+    out property <float> glow-intensity: 0.55;
+    out property <float> glow-alpha-scale: 0.20;   // 最终不透明度 = intensity × scale
+    out property <float> glow-width-ratio: 1.7;    // 辉光宽 / 柱宽
+    out property <length> glow-spread: 9px;        // 辉光高出柱顶的余量
+}

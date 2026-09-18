@@ -1,0 +1,116 @@
+// 频谱容器：渲染辉光底层、主柱、峰点、倒影与基线。
+//
+// 渲染顺序（先画的在底层）：
+//   GlowBar（柔光带）→ SpectrumBar（主柱）→ SpectrumPeak（峰点）
+//   → ReflectionBar（倒影）→ 基线
+//
+// 数据模型 SpectrumBarData 由 Rust 端每行增量更新；
+// 柱体数量即模型行数（参考视觉稿为 88 根细柱）。
+import { Metrics } from "../theme/dimensions.slint";
+import { Palette } from "../theme/colors.slint";
+import { SpectrumBar } from "spectrum_bar.slint";
+import { SpectrumPeak } from "spectrum_peak.slint";
+import { GlowBar } from "glow.slint";
+
+// 频谱单柱数据（Rust 端 60Hz 增量写入）。
+export struct SpectrumBarData {
+    // 柱高（0..1，相对主谱区可用高度）
+    height: float,
+    // 峰值位置（0..1，恒 >= height）
+    peak: float,
+    // 柱色（调色板按柱位渐变）
+    color: color,
+    // 峰点颜色（柱色亮化版）
+    peak-color: color,
+}
+
+// 倒影柱：位于基线下方、高度压缩、低透明度的镜像。
+// 关闭倒影时 reflect-max 为 0，自然不可见。
+component ReflectionBar inherits Rectangle {
+    in property <float> bar-height: 0;
+    in property <color> bar-color: #FFFFFF;
+    in property <int> slot-index: 0;
+    in property <length> slot-width: 0px;
+    // 倒影起点 y（基线下缘）
+    in property <length> reflect-y: 0px;
+    // 倒影可用高度
+    in property <length> reflect-max: 0px;
+
+    x: self.slot-width * self.slot-index + (self.slot-width - self.width) / 2;
+    width: self.slot-width * Metrics.bar-width-ratio;
+
+    // 高度：柱高 × 倒影比例，且不超过倒影可用空间
+    height: min(self.reflect-max, self.reflect-max * self.bar-height);
+    y: self.reflect-y;
+    border-radius: min(self.width, self.height) * Metrics.bar-roundness;
+    background: @linear-gradient(180deg, self.bar-color, transparent);
+    opacity: Metrics.reflection-opacity;
+}
+
+export component Spectrum inherits Rectangle {
+    // 频谱数据模型
+    in property <[SpectrumBarData]> bars: [];
+    // 是否启用倒影与基线（来自配置）
+    in property <bool> show-reflection: true;
+    in property <bool> show-baseline: true;
+
+    // 柱数与槽位几何（由容器统一计算后传给每根柱）
+    property <int> bar-count: root.bars.length;
+    property <length> slot-width: self.width / max(1, root.bar-count);
+
+    // 垂直分层：主谱区 + [基线] + 倒影区
+    property <length> reflection-area: root.show-reflection ?
+        self.height * Metrics.reflection-ratio / (1.0 + Metrics.reflection-ratio) : 0px;
+    property <length> baseline-h: root.show-baseline ? Metrics.baseline-height : 0px;
+    // 主谱底部基线 y（柱体与峰点以此为基准向上）
+    property <length> baseline-y: self.height - root.reflection-area - root.baseline-h;
+
+    // ---- 辉光底层 ----
+    for bar[i] in root.bars: GlowBar {
+        bar-height: bar.height;
+        bar-color: bar.color;
+        slot-index: i;
+        slot-width: root.slot-width;
+        baseline-y: root.baseline-y;
+    }
+
+    // ---- 主柱 ----
+    for bar[i] in root.bars: SpectrumBar {
+        bar-height: bar.height;
+        bar-color: bar.color;
+        slot-index: i;
+        slot-width: root.slot-width;
+        baseline-y: root.baseline-y;
+    }
+
+    // ---- 峰点 ----
+    for bar[i] in root.bars: SpectrumPeak {
+        peak-height: bar.peak;
+        peak-color: bar.peak_color;
+        slot-index: i;
+        slot-width: root.slot-width;
+        baseline-y: root.baseline-y;
+    }
+
+    // ---- 倒影 ----
+    for bar[i] in root.bars: ReflectionBar {
+        bar-height: bar.height;
+        bar-color: bar.color;
+        slot-index: i;
+        slot-width: root.slot-width;
+        reflect-y: root.baseline-y + root.baseline-h;
+        reflect-max: root.reflection-area;
+    }
+
+    // ---- 底部基线 ----
+    Rectangle {
+        x: 0;
+        width: parent.width;
+        y: root.baseline-y;
+        height: max(1px, root.baseline-h);
+        visible: root.show-baseline;
+        border-radius: self.height / 2;
+        background: Palette.baseline;
+        opacity: Metrics.baseline-opacity;
+    }
+}

@@ -1,0 +1,31 @@
+// 单根频谱柱：细长圆角矩形，底部严格对齐。
+//
+// 几何由容器（Spectrum）统一计算后传入：
+// 每根柱占一个等宽"槽位"，柱体居中于槽内、宽度占槽位比例由
+// Metrics.bar-width-ratio 控制（细柱 + 小间距）。
+import { Metrics } from "../theme/dimensions.slint";
+
+export component SpectrumBar inherits Rectangle {
+    // 归一化高度 0..1（相对频谱区域可用高度）
+    in property <float> bar-height: 0;
+    // 柱色（由 Rust 端调色板按柱位渐变计算后传入）
+    in property <color> bar-color: #FFFFFF;
+    // 槽位索引（用于计算 x）
+    in property <int> slot-index: 0;
+    // 槽位宽度（由容器按总宽 / 柱数计算）
+    in property <length> slot-width: 0px;
+    // 底部对齐的基线 y（频谱底部）
+    in property <length> baseline-y: 0px;
+
+    // 槽位几何：柱体居中于槽内
+    x: self.slot-width * self.slot-index + (self.slot-width - self.width) / 2;
+    width: self.slot-width * Metrics.bar-width-ratio;
+
+    // 底部严格对齐：y = 基线 - 高度
+    height: max(Metrics.spectrum-min-bar-height, self.baseline-y * self.bar-height);
+    y: self.baseline-y - self.height;
+
+    border-radius: min(self.width, self.height) * Metrics.bar-roundness;
+    background: self.bar-color;
+    opacity: Metrics.bar-opacity;
+}

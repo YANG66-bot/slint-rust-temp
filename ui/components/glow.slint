@@ -1,0 +1,28 @@
+// 柔和辉光：主柱底层的低透明度加宽矩形，近似轻量 Glow。
+//
+// 设计取舍：避免为 88 根柱各开一层 GPU 高斯模糊（drop-shadow-blur
+// 开销大且强度难以均匀），改为"同位加宽、低透明度、大圆角"的
+// 底衬层——相邻柱的辉光自然衔接成柔光带，符合"轻微 Glow、
+// 不做霓虹灯爆炸"的视觉要求。
+import { Metrics } from "../theme/dimensions.slint";
+
+export component GlowBar inherits Rectangle {
+    // 与主柱相同的归一化高度
+    in property <float> bar-height: 0;
+    // 辉光色（与柱同色，由透明度控制强度）
+    in property <color> bar-color: #FFFFFF;
+    in property <int> slot-index: 0;
+    in property <length> slot-width: 0px;
+    in property <length> baseline-y: 0px;
+
+    x: self.slot-width * self.slot-index + (self.slot-width - self.width) / 2;
+    width: self.slot-width * Metrics.glow-width-ratio;
+
+    // 辉光略高于柱顶并向下延伸到基线，形成柔化边缘
+    height: max(0px, self.baseline-y * self.bar-height + Metrics.glow-spread);
+    y: self.baseline-y - self.height;
+
+    border-radius: self.width / 2;
+    background: self.bar-color;
+    opacity: Metrics.glow-intensity * Metrics.glow-alpha-scale;
+}

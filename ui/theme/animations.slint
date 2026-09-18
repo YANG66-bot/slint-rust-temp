@@ -1,0 +1,9 @@
+// 动画时长与缓动常量。
+// 注意：频谱柱高度本身不做 Slint 属性动画（由 Rust 端 60Hz 插值驱动，
+// 避免双重平滑造成拖沓感）；此处的时长用于按钮 hover 等控件微交互。
+
+export global Anims {
+    out property <duration> hover: 120ms;
+    out property <duration> press: 80ms;
+    out property <duration> fade: 240ms;
+}
