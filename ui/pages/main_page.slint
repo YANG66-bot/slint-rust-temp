@@ -22,4 +22,10 @@ export component MainPage inherits Rectangle {
         show-reflection: root.show-reflection;
         show-baseline: root.show-baseline;
     }
+
+    // 全窗口拖动热区：按住任意位置拖动即可移动挂件（no-frame 窗口的
+    // 移动能力由窗口系统执行）。纯频谱无其他交互元素，无事件冲突；
+    // 声明在 Spectrum 之后 = 最上层，确保始终接收拖拽。
+    // 未指定宽高时自动扩展至父元素几何，且不影响边缘缩放热区。
+    WindowMoveArea { }
 }

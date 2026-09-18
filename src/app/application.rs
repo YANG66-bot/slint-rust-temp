@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use slint::ComponentHandle;
 
 use crate::AppWindow;
-use crate::audio::MicrophoneCapture;
+use crate::audio::SystemAudioSource;
 use crate::audio::buffer::PcmRingBuffer;
 use crate::audio::engine::AudioEngine;
 use crate::audio::source::{AudioSource, AudioSourceKind, TestSignalSource};
@@ -29,31 +29,22 @@ use crate::spectrum::AnalyzerHandle;
 use crate::ui::{SpectrumBridge, UiUpdater};
 use crate::visualizer::{Palette, VisualizerState};
 
-/// 依据配置构建默认音频源，返回（源，实际生效的音源类型）。
+/// 依据配置构建默认音频源：系统音频环回优先，不可用时回退测试信号。
 ///
-/// 实际生效类型可能因回退而与配置不同：配置为 `File` 但挂件形态
-/// 不加载文件、麦克风不可用、系统环回不支持时，均回退测试信号，
-/// 保证"无音频设备/未实现能力时仍能运行"。
+/// 挂件形态不提供播放控制 UI，`File` / `Microphone` 配置不再生效：
+/// 统一捕获本机播放器正在输出的声音（WASAPI loopback），
+/// 环回不可用（无输出设备 / COM 失败）时回退测试信号保证可运行。
 fn build_default_source(
     settings: &Settings,
     ring: &Arc<PcmRingBuffer>,
 ) -> (Box<dyn AudioSource>, AudioSourceKind) {
+    // source 字段保留序列化兼容，挂件形态不据此选源
+    let _ = settings.audio.source;
     let test = || Box::new(TestSignalSource::new(Arc::clone(ring))) as Box<dyn AudioSource>;
-    match settings.audio.source {
-        AudioSourceKind::Test => (test(), AudioSourceKind::Test),
-        AudioSourceKind::File => {
-            tracing::info!("挂件形态不加载音频文件，使用测试信号");
-            (test(), AudioSourceKind::Test)
-        }
-        AudioSourceKind::Microphone => match MicrophoneCapture::new(Arc::clone(ring), None) {
-            Ok(capture) => (Box::new(capture), AudioSourceKind::Microphone),
-            Err(e) => {
-                tracing::warn!("麦克风不可用（{e}），回退测试信号");
-                (test(), AudioSourceKind::Test)
-            }
-        },
-        AudioSourceKind::System => {
-            tracing::warn!("系统音频环回不可用，回退测试信号");
+    match SystemAudioSource::new(Arc::clone(ring)) {
+        Ok(source) => (Box::new(source), AudioSourceKind::System),
+        Err(e) => {
+            tracing::warn!("系统音频环回不可用（{e}），回退测试信号");
             (test(), AudioSourceKind::Test)
         }
     }
@@ -63,11 +54,10 @@ fn build_default_source(
 pub fn run() -> anyhow::Result<()> {
     let mut settings = Settings::load_or_default().sanitized();
     tracing::info!(
-        "Music Spectrum 启动 | 柱数={} FFT={} 分析帧率={}Hz 音源={}",
+        "Music Spectrum 启动 | 柱数={} FFT={} 分析帧率={}Hz 音源=系统音频环回",
         settings.spectrum.bar_count,
         settings.spectrum.fft_size,
-        settings.spectrum.fps,
-        settings.audio.source
+        settings.spectrum.fps
     );
 
     // ---------- 音频层 ----------

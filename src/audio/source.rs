@@ -197,36 +197,7 @@ impl TestSignalGenerator {
     }
 }
 
-/// 系统音频环回捕获（预留接口，未实现）。
-///
-/// Windows 需要 WASAPI loopback（cpal 不支持该能力），macOS 需要
-/// ScreenCaptureKit/虚拟音频设备，Linux 需要 PulseAudio monitor 源。
-/// 为避免伪造实现，此源启动时明确返回错误。
-pub struct SystemAudioSource;
-
-impl AudioSource for SystemAudioSource {
-    fn start(&mut self) -> AppResult<()> {
-        Err(AppError::UnsupportedFormat(
-            "系统音频环回捕获尚未实现（需要 WASAPI loopback 等平台专属能力）".to_string(),
-        ))
-    }
-
-    fn stop(&mut self) -> AppResult<()> {
-        Ok(())
-    }
-
-    fn sample_rate(&self) -> u32 {
-        48000
-    }
-
-    fn channels(&self) -> u16 {
-        2
-    }
-
-    fn describe(&self) -> String {
-        "系统音频环回（未实现，预留接口）".to_string()
-    }
-}
+// 系统音频环回源已移至 [`crate::audio::loopback`]（WASAPI Loopback 实现）。
 
 #[cfg(test)]
 mod tests {
@@ -274,12 +245,5 @@ mod tests {
         assert!(source.stop().is_ok());
         let available = ring.available();
         assert!(available > 0, "停止后已生成数据应可读: {available}");
-    }
-
-    #[test]
-    fn system_audio_source_is_honestly_unimplemented() {
-        let mut source = SystemAudioSource;
-        let err = source.start().unwrap_err();
-        assert!(matches!(err, AppError::UnsupportedFormat(_)));
     }
 }

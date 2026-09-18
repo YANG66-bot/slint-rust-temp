@@ -13,6 +13,9 @@ slint = "1.16.1"
 rustfft = "6.2"
 # 跨平台音频设备抽象（WASAPI/CoreAudio/ALSA）：输出播放与麦克风采集
 cpal = "0.15"
+# Windows WASAPI 原生绑定：系统音频环回采集（cpal 不支持 loopback，直接调 COM）
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.54", features = ["Win32_Media_Audio", "Win32_System_Com"] }
 # 纯 Rust 音频解码器（按需启用容器/编解码 feature：MP3、WAV、FLAC、OGG/Vorbis）
 symphonia = { version = "0.5", features = ["mp3", "wav", "flac", "ogg", "vorbis"] }
 # 线程安全通道：分析线程 -> UI 线程传递频谱状态（owned message，避免共享可变状态）
