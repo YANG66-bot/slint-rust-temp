@@ -150,16 +150,16 @@ pub fn run() -> anyhow::Result<()> {
         if let Some(frame) = tick_analyzer.latest_frame() {
             tick_state.borrow_mut().push_frame(&frame);
         }
-        // 平滑 → 插值时间常数；帧率无关插值 + 增益写模型
+        // 平滑 → 插值时间常数；帧率无关插值 + 增益/AGC 映射写模型
+        let now = Instant::now();
+        let dt = now.duration_since(tick_last.get()).as_secs_f32();
+        tick_last.set(now);
         {
             let mut state = tick_state.borrow_mut();
             state.set_time_constant(cfg.time_constant());
-            let now = Instant::now();
-            let dt = now.duration_since(tick_last.get()).as_secs_f32();
-            tick_last.set(now);
             state.tick(dt);
         }
-        bridge.update(&tick_state.borrow(), cfg.bar_gain, cfg.peak_gain);
+        bridge.update(&tick_state.borrow(), cfg.bar_gain, cfg.peak_gain, dt);
     });
 
     // ---------- 设置面板 + 系统托盘 ----------

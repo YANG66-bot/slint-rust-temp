@@ -133,13 +133,15 @@ component LabeledSlider inherits Rectangle {
     }
 }
 
-// ---- 子组件：调色板一行（复选框 + HEX 文本框 + 颜色预览块） ----
+// ---- 子组件：调色板一行（复选框 + HEX 文本框 + 可点击颜色预览块） ----
 component ColorPaletteRow inherits Rectangle {
     in property <int> index: 0;
     in property <bool> enabled: true;
     in property <string> hex: "#FFFFFF";
     in property <color> swatch: #FFFFFF;
     callback edited(int, bool, string);
+    // 点击颜色预览块 → 请求打开颜色选择器（索引，当前 HEX）
+    callback picked(int, string);
 
     width: 100%;
     height: SettingsTheme.row-height;
@@ -155,12 +157,20 @@ component ColorPaletteRow inherits Rectangle {
             horizontal-stretch: 1;
             accepted => { root.edited(root.index, root.enabled, self.text); }
         }
+        // 颜色预览块：TouchArea 自动铺满父矩形，点击弹出色择器
         Rectangle {
             width: 44px;
             border-radius: 4px;
             border-width: 1px;
             border-color: SettingsTheme.card-border;
             background: root.swatch;
+            TouchArea {
+                pointer-event(ev) => {
+                    if (ev.button == PointerEventButton.left && ev.kind == PointerEventKind.down) {
+                        root.picked(root.index, root.hex);
+                    }
+                }
+            }
         }
     }
 }
@@ -196,6 +206,11 @@ export component SettingsPanel inherits Window {
     ];
     // 调色板某行被编辑（索引，是否启用，HEX）
     callback palette-changed(int, bool, string);
+    // 请求 Rust 打开原生颜色选择器（索引，当前 HEX）
+    callback request-color-picker(int, string);
+    // Rust 选定并确认后回写（索引，新 HEX）：转发进统一的 palette-changed 路径
+    callback color-updated(int, string);
+    color-updated(idx, hx) => { root.palette-changed(idx, true, hx); }
 
     // ===== 左栏：系统选项 =====
     in-out property <bool> auto-start: false;
@@ -254,7 +269,11 @@ export component SettingsPanel inherits Window {
         background: SettingsTheme.card-bg;
 
         HorizontalLayout {
-            padding: 18px;
+            // 顶部留出标题栏拖动区的高度（padding-top 48 ≈ 标题栏 36px + 间隙）
+            padding-left: 18px;
+            padding-right: 18px;
+            padding-bottom: 18px;
+            padding-top: 48px;
             spacing: 22px;
 
             // ================= 左栏 =================
@@ -288,6 +307,7 @@ export component SettingsPanel inherits Window {
                     hex: stop.hex;
                     swatch: stop.color;
                     edited(idx, en, hx) => { root.palette-changed(idx, en, hx); }
+                    picked(idx, hx) => { root.request-color-picker(idx, hx); }
                 }
 
                 SectionHeader { title: "系统选项"; }
@@ -464,6 +484,46 @@ export component SettingsPanel inherits Window {
                     }
                 }
             }
+        }
+    }
+
+    // 标题栏拖动区：顶层 WindowMoveArea，按住标题栏任意位置即可移动窗口。
+    // 浮于卡片顶部之上；内容区已用 padding-top 下移，不会被遮挡任何控件。
+    Rectangle {
+        x: 6px;
+        y: 6px;
+        width: parent.width - 12px;
+        height: 36px;
+        border-top-left-radius: SettingsTheme.radius;
+        border-top-right-radius: SettingsTheme.radius;
+
+        WindowMoveArea {
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                spacing: 10px;
+                Text {
+                    text: "可视化设置 · Visualizer";
+                    color: SettingsTheme.text;
+                    font-size: SettingsTheme.font-base;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Text {
+                    text: "按住标题栏拖动窗口";
+                    color: SettingsTheme.text-dim;
+                    font-size: SettingsTheme.font-base;
+                    vertical-alignment: center;
+                }
+            }
+        }
+        // 标题栏底部分隔线（Rectangle 不参与命中测试，不阻挡拖动）
+        Rectangle {
+            y: parent.height - 1px;
+            height: 1px;
+            width: parent.width;
+            background: SettingsTheme.card-border;
         }
     }
 }

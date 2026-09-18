@@ -31,5 +31,5 @@ export global Metrics {
     out property <float> glow-intensity: 0.55;
     out property <float> glow-alpha-scale: 0.20;   // 最终不透明度 = intensity × scale
     out property <float> glow-width-ratio: 1.7;    // 辉光宽 / 柱宽
-    out property <length> glow-spread: 9px;        // 辉光高出柱顶的余量
+    out property <length> glow-spread: 0px;        // 辉光高出柱顶的余量（0：顶部不越出柱顶，避免成第二排点带）
 }

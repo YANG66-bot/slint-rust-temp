@@ -1,7 +1,7 @@
-// 频谱容器：渲染辉光底层、主柱、峰点、倒影与基线。
+// 频谱容器：渲染辉光底层、主柱、倒影与基线。
 //
 // 渲染顺序（先画的在底层）：
-//   GlowBar（柔光带）→ SpectrumBar（主柱）→ SpectrumPeak（峰点）
+//   GlowBar（柔光带）→ SpectrumBar（主柱）
 //   → ReflectionBar（倒影）→ 基线
 //
 // 数据模型 SpectrumBarData 由 Rust 端每行增量更新；
@@ -9,18 +9,17 @@
 import { Metrics } from "../theme/dimensions.slint";
 import { Palette } from "../theme/colors.slint";
 import { SpectrumBar } from "spectrum_bar.slint";
-import { SpectrumPeak } from "spectrum_peak.slint";
 import { GlowBar } from "glow.slint";
 
 // 频谱单柱数据（Rust 端 60Hz 增量写入）。
 export struct SpectrumBarData {
     // 柱高（0..1，相对主谱区可用高度）
     height: float,
-    // 峰值位置（0..1，恒 >= height）
+    // 峰值位置（0..1，恒 >= height；峰线渲染已移除，字段保留供扩展）
     peak: float,
     // 柱色（调色板按柱位渐变）
     color: color,
-    // 峰点颜色（柱色亮化版）
+    // 峰点颜色（柱色亮化版；峰线已移除，字段保留供扩展）
     peak-color: color,
 }
 
@@ -93,17 +92,6 @@ export component Spectrum inherits Rectangle {
         baseline-y: root.baseline-y;
         width-ratio: root.bar-width-ratio;
         roundness: root.bar-roundness;
-    }
-
-    // ---- 峰点 ----
-    for bar[i] in root.bars: SpectrumPeak {
-        peak-height: bar.peak;
-        peak-color: bar.peak_color;
-        slot-index: i;
-        slot-width: root.slot-width;
-        baseline-y: root.baseline-y;
-        width-ratio: root.bar-width-ratio;
-        peak-gap: root.peak-gap;
     }
 
     // ---- 倒影 ----
