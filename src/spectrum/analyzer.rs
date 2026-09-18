@@ -29,6 +29,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+/// 低频（Bass）判定上限（Hz）：中心频率低于此值的频段计入 bass 能量。
+pub const BASS_CEILING_HZ: f32 = 250.0;
+
 /// 一帧频谱数据：逐柱归一化高度与峰值位置（均被夹在 `[0, 1]`）。
 ///
 /// owned 发送（跨线程无共享可变状态）；柱数恒等于配置的频谱柱数。
@@ -38,6 +41,10 @@ pub struct SpectrumFrame {
     pub heights: Vec<f32>,
     /// 每柱峰顶位置（恒 >= 对应柱高）。
     pub peaks: Vec<f32>,
+    /// 低频能量（0~250Hz 频段平滑后均值，0 = 静音，1 = 满幅）。
+    ///
+    /// 供反应式基线等需要“整体响度”而非逐柱细节的消费方使用。
+    pub bass: f32,
 }
 
 impl SpectrumFrame {
@@ -156,10 +163,23 @@ impl AnalysisPipeline {
         // 5. attack/release 平滑（复用 smoother 内部状态）
         let smoothed = self.smoother.process(&self.normalized);
 
-        // 6. 增益 + 夹取（复用 heights）
-        for (out, &s) in self.heights.iter_mut().zip(smoothed) {
-            *out = (s * self.height_scale).clamp(0.0, 1.0);
+        // 6. 增益 + 夹取（复用 heights）；顺带累计低频（<=250Hz）平滑能量
+        let mut bass_sum = 0.0f32;
+        let mut bass_bins = 0usize;
+        for (i, &s) in smoothed.iter().enumerate() {
+            self.heights[i] = (s * self.height_scale).clamp(0.0, 1.0);
+            if self.bands.center_hz(i) <= BASS_CEILING_HZ {
+                bass_sum += s;
+                bass_bins += 1;
+            }
         }
+        // 无低频柱时（极端配置）退化为全谱最大值，避免 bass 恒为 0
+        let bass = if bass_bins > 0 {
+            bass_sum / bass_bins as f32
+        } else {
+            smoothed.iter().copied().fold(0.0f32, f32::max)
+        }
+        .clamp(0.0, 1.0);
 
         // 7. 峰值保持（输入为最终展示高度，峰点恒 >= 柱高）
         let peaks = self.peaks.process(&self.heights);
@@ -167,6 +187,7 @@ impl AnalysisPipeline {
         SpectrumFrame {
             heights: self.heights.clone(),
             peaks: peaks.to_vec(),
+            bass,
         }
     }
 }
@@ -298,6 +319,7 @@ mod tests {
             assert!(frame.heights.iter().all(|h| h.is_finite()));
             assert!(frame.heights.iter().all(|h| *h < 1e-6));
             assert!(frame.peaks.iter().all(|p| p.is_finite()));
+            assert!(frame.bass < 1e-6, "静音时 bass 应接近 0");
         }
     }
 
@@ -316,6 +338,12 @@ mod tests {
         let frame = frame.expect("frame after 8 windows");
         assert_eq!(frame.bar_count(), 88);
         assert!(frame.heights.iter().all(|h| (0.0..=1.0).contains(h)));
+        // 鼓点/扫频信号应让低频能量非零且在合法范围
+        assert!(
+            (0.0..=1.0).contains(&frame.bass),
+            "bass 应在 0..=1，实际 {}",
+            frame.bass
+        );
         // 鼓点/扫频信号应让至少一根柱明显抬升
         assert!(
             frame.heights.iter().any(|h| *h > 0.2),

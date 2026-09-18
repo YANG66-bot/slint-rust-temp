@@ -137,7 +137,10 @@ fn live_snapshot(panel: &SettingsPanel, palette: &Rc<VecModel<ColorStop>>) -> Vi
         smoothing: panel.get_smoothing(),
         opacity: panel.get_master_opacity(),
         enable_reflection: panel.get_enable_reflection(),
-        enable_peak_line: panel.get_enable_peak_line(),
+        enable_baseline: panel.get_enable_peak_line(),
+        // 基线伸缩参数面板暂未暴露滑条，沿用默认值
+        baseline_gain: base.baseline_gain,
+        baseline_min_ratio: base.baseline_min_ratio,
         colors: if colors.len() >= 2 {
             colors
         } else {

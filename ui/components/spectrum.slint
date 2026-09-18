@@ -54,7 +54,11 @@ export component Spectrum inherits Rectangle {
     in property <[SpectrumBarData]> bars: [];
     // 是否启用倒影与基线（来自配置）
     in property <bool> show-reflection: true;
-    in property <bool> show-baseline: true;
+    in property <bool> enable-baseline: true;
+    // 反应式基线：平滑低频能量（Rust 每帧写入，0~1）与伸缩参数
+    in property <float> baseline-level: 0;
+    in property <float> baseline-gain: 2.5;
+    in property <float> baseline-min-ratio: 0.2;
     // 运行时几何 / 样式（由 Rust 每帧从共享配置写入，默认取主题值）
     in property <float> bar-width-ratio: Metrics.bar-width-ratio;
     in property <float> bar-roundness: Metrics.bar-roundness;
@@ -70,9 +74,15 @@ export component Spectrum inherits Rectangle {
     // 垂直分层：主谱区 + [基线] + 倒影区
     property <length> reflection-area: root.show-reflection ?
         self.height * Metrics.reflection-ratio / (1.0 + Metrics.reflection-ratio) : 0px;
-    property <length> baseline-h: root.show-baseline ? Metrics.baseline-height : 0px;
-    // 主谱底部基线 y（柱体与峰点以此为基准向上）
+    property <length> baseline-h: root.enable-baseline ? Metrics.baseline-height : 0px;
+    // 主谱底部基线 y（柱体与倒影以此为基准）
     property <length> baseline-y: self.height - root.reflection-area - root.baseline-h;
+
+    // 反应式基线宽度：静音时收至 min-ratio，bass 能量×增益经
+    // lerp(min, 1, t) 从中心向外拉伸（t 夹在 0~1）
+    property <float> baseline-drive: Math.max(0, Math.min(1, root.baseline-level * root.baseline-gain));
+    property <length> baseline-line-width: root.width * (root.baseline-min-ratio
+        + (1.0 - root.baseline-min-ratio) * root.baseline-drive);
 
     // ---- 辉光底层 ----
     for bar[i] in root.bars: GlowBar {
@@ -106,15 +116,24 @@ export component Spectrum inherits Rectangle {
         roundness: root.bar-roundness;
     }
 
-    // ---- 底部基线 ----
-    Rectangle {
-        x: 0;
-        width: parent.width;
-        y: root.baseline-y;
-        height: max(1px, root.baseline-h);
-        visible: root.show-baseline;
-        border-radius: self.height / 2;
-        background: Palette.baseline;
-        opacity: Metrics.baseline-opacity;
-    }
+    // ---- 反应式基线：宽度随低频能量从中心伸缩，两端渐隐 + 柔光 ----
+    if root.enable-baseline:
+        Rectangle { // 辉光带：比主线宽厚、低透明度，近似 bloom
+            x: (parent.width - root.baseline-line-width) / 2;
+            width: root.baseline-line-width;
+            height: Metrics.baseline-height * 3;
+            y: root.baseline-y - (self.height - Metrics.baseline-height) / 2;
+            border-radius: self.height / 2;
+            background: @linear-gradient(90deg, transparent, Palette.baseline 50%, transparent);
+            opacity: 0.30;
+        }
+        Rectangle { // 主线：中心最亮（白→浅青），向两端淡出至全透明
+            x: (parent.width - root.baseline-line-width) / 2;
+            width: root.baseline-line-width;
+            height: max(1px, root.baseline-h);
+            y: root.baseline-y;
+            border-radius: self.height / 2;
+            background: @linear-gradient(90deg, transparent, #FFFFFF 30%, Palette.baseline 50%, #FFFFFF 70%, transparent);
+            opacity: 0.9;
+        }
 }

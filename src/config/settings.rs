@@ -15,6 +15,12 @@ use std::path::{Path, PathBuf};
 /// 默认五色调色板：粉 → 浅粉 → 天蓝 → 浅紫 → 青（与参考视觉稿一致）。
 pub const DEFAULT_COLORS: [&str; 5] = ["#F8AFDB", "#F8A3C8", "#87CEEB", "#D8BFDB", "#00FFFF"];
 
+/// 反应式基线伸缩灵敏度默认值（baseline-level × gain → 宽度插值因子）。
+pub const DEFAULT_BASELINE_GAIN: f32 = 2.5;
+
+/// 反应式基线静止（静音）时的最小宽度占画布比例。
+pub const DEFAULT_BASELINE_MIN_RATIO: f32 = 0.2;
+
 /// 顶层配置。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -403,8 +409,12 @@ pub struct VisualizerConfig {
     pub opacity: f32,
     /// 启用倒影。
     pub enable_reflection: bool,
-    /// 启用峰值基线（横线）。
-    pub enable_peak_line: bool,
+    /// 启用反应式基线（底部横线，宽度随低频能量伸缩）。
+    pub enable_baseline: bool,
+    /// 基线伸缩灵敏度（level×gain 映射为宽度插值因子）。
+    pub baseline_gain: f32,
+    /// 基线静音时的最小宽度比例（0~1，占画布宽）。
+    pub baseline_min_ratio: f32,
     /// 调色板（启用的 HEX 列表）。
     pub colors: Vec<String>,
 }
@@ -434,7 +444,10 @@ impl VisualizerConfig {
             smoothing: p.smoothing,
             opacity: p.master_opacity,
             enable_reflection: p.enable_reflection,
-            enable_peak_line: p.enable_peak_line,
+            // 面板“启用横线”开关即基线开关（持久化字段名保留兼容）
+            enable_baseline: p.enable_peak_line,
+            baseline_gain: DEFAULT_BASELINE_GAIN,
+            baseline_min_ratio: DEFAULT_BASELINE_MIN_RATIO,
             colors,
         }
     }
@@ -461,15 +474,22 @@ impl VisualizerConfig {
             "peak-gain" | "peak_gain" => self.peak_gain = v.clamp(0.1, 5.0),
             "peak-amplitude" | "peak_amplitude" => self.peak_amp = v.clamp(0.0, 1.0),
             "smoothing" => self.smoothing = v.clamp(0.0, 0.99),
+            "baseline-gain" | "baseline_gain" => self.baseline_gain = v.clamp(0.5, 8.0),
+            "baseline-min-ratio" | "baseline_min_ratio" => {
+                self.baseline_min_ratio = v.clamp(0.0, 1.0);
+            }
             _ => {}
         }
     }
 
-    /// 按参数名实时应用一个开关（倒影 / 横线）。
+    /// 按参数名实时应用一个开关（倒影 / 基线）。
     pub fn set_toggle(&mut self, name: &str, on: bool) {
         match name {
             "enable-reflection" | "enable_reflection" => self.enable_reflection = on,
-            "enable-peak-line" | "enable_peak_line" => self.enable_peak_line = on,
+            // “enable-peak-line”为历史名称（面板持久化字段），语义已是基线开关
+            "enable-baseline" | "enable_baseline" | "enable-peak-line" | "enable_peak_line" => {
+                self.enable_baseline = on;
+            }
             _ => {}
         }
     }

@@ -9,7 +9,11 @@ export component MainPage inherits Rectangle {
     in property <[SpectrumBarData]> bars: [];
     // 视觉开关（透传至 Spectrum）
     in property <bool> show-reflection: true;
-    in property <bool> show-baseline: true;
+    in property <bool> enable-baseline: true;
+    // 反应式基线参数（透传至 Spectrum）
+    in property <float> baseline-level: 0;
+    in property <float> baseline-gain: 2.5;
+    in property <float> baseline-min-ratio: 0.2;
     // 运行时几何 / 样式（透传至 Spectrum）
     in property <float> bar-width-ratio;
     in property <float> bar-roundness;
@@ -25,7 +29,10 @@ export component MainPage inherits Rectangle {
         height: 100%;
         bars: root.bars;
         show-reflection: root.show-reflection;
-        show-baseline: root.show-baseline;
+        enable-baseline: root.enable-baseline;
+        baseline-level: root.baseline-level;
+        baseline-gain: root.baseline-gain;
+        baseline-min-ratio: root.baseline-min-ratio;
         bar-width-ratio: root.bar-width-ratio;
         bar-roundness: root.bar-roundness;
         peak-gap: root.peak-gap;

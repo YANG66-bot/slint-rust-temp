@@ -172,6 +172,7 @@ mod tests {
         state.push_frame(&SpectrumFrame {
             heights: vals.to_vec(),
             peaks: vals.to_vec(),
+            bass: 0.0,
         });
         for _ in 0..120 {
             state.tick(0.016);

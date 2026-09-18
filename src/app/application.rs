@@ -93,7 +93,9 @@ pub fn run() -> anyhow::Result<()> {
     window.set_master_opacity(init.opacity);
     window.set_peak_gap(init.peak_gap_px());
     window.set_show_reflection(init.enable_reflection);
-    window.set_show_baseline(init.enable_peak_line);
+    window.set_enable_baseline(init.enable_baseline);
+    window.set_baseline_gain(init.baseline_gain);
+    window.set_baseline_min_ratio(init.baseline_min_ratio);
 
     let visual_state = Rc::new(RefCell::new({
         let mut s = VisualizerState::new(init.bar_count);
@@ -131,8 +133,14 @@ pub fn run() -> anyhow::Result<()> {
             if cfg.enable_reflection != applied.enable_reflection {
                 w.set_show_reflection(cfg.enable_reflection);
             }
-            if cfg.enable_peak_line != applied.enable_peak_line {
-                w.set_show_baseline(cfg.enable_peak_line);
+            if cfg.enable_baseline != applied.enable_baseline {
+                w.set_enable_baseline(cfg.enable_baseline);
+            }
+            if cfg.baseline_gain != applied.baseline_gain {
+                w.set_baseline_gain(cfg.baseline_gain);
+            }
+            if cfg.baseline_min_ratio != applied.baseline_min_ratio {
+                w.set_baseline_min_ratio(cfg.baseline_min_ratio);
             }
             // 柱数变化：重建桥 + 重设模型 + 缩放展示状态；否则调色板变化仅重算颜色
             if cfg.bar_count != bridge.bar_count() {
@@ -158,6 +166,10 @@ pub fn run() -> anyhow::Result<()> {
             let mut state = tick_state.borrow_mut();
             state.set_time_constant(cfg.time_constant());
             state.tick(dt);
+        }
+        // 反应式基线：每帧写入平滑后的低频能量（Slint 据此伸缩线宽）
+        if let Some(w) = window_weak.upgrade() {
+            w.set_baseline_level(tick_state.borrow().bass_level());
         }
         bridge.update(&tick_state.borrow(), cfg.bar_gain, cfg.peak_gain, dt);
     });

@@ -29,6 +29,10 @@ const IDLE_MAX_HEIGHT: f32 = 0.11;
 const IDLE_BREATH_HZ: f32 = 0.35;
 const IDLE_PHASE_SPAN: f32 = 6.0;
 
+/// 低频能量 EMA 时间常数（秒）：比柱高插值更慢，
+/// 让反应式基线的伸缩平滑庄重，不随单帧噪声闪烁。
+const BASS_EMA_TAU: f32 = 0.12;
+
 /// 频谱展示状态（仅 UI 线程访问）。
 pub struct VisualizerState {
     /// 当前展示高度（插值后，0~1）。
@@ -41,6 +45,10 @@ pub struct VisualizerState {
     target_peaks: Vec<f32>,
     /// 插值时间常数（秒）。
     time_constant: f32,
+    /// 低频能量目标（最新分析帧）。
+    target_bass: f32,
+    /// 低频能量展示值（EMA 平滑后，供反应式基线使用）。
+    smoothed_bass: f32,
     /// 是否启用 idle 呼吸动画（无信号时轻柔起伏）。
     idle_enabled: bool,
     /// 距上一帧的累计秒数。
@@ -58,6 +66,8 @@ impl VisualizerState {
             target_heights: vec![0.0; bar_count],
             target_peaks: vec![0.0; bar_count],
             time_constant: DEFAULT_TIME_CONSTANT,
+            target_bass: 0.0,
+            smoothed_bass: 0.0,
             idle_enabled: true,
             since_last_frame: f32::INFINITY,
             idle_clock: 0.0,
@@ -90,6 +100,7 @@ impl VisualizerState {
             .copy_from_slice(&resample_to(&frame.heights, n));
         self.target_peaks
             .copy_from_slice(&resample_to(&frame.peaks, n));
+        self.target_bass = frame.bass.clamp(0.0, 1.0);
         self.since_last_frame = 0.0;
         self.idle_clock = 0.0;
     }
@@ -140,6 +151,17 @@ impl VisualizerState {
         for (cur, &t) in self.peaks.iter_mut().zip(&self.target_peaks) {
             *cur += (t - *cur) * k;
         }
+
+        // 低频能量单独走一条更慢的 EMA（帧率无关）：
+        // smooth = smooth·f + current·(1-f)，f = exp(-dt/tau)，
+        // 防止基线长度随单帧抖动产生“频闪”式伸缩
+        let bk = 1.0 - (-dt / BASS_EMA_TAU).exp();
+        self.smoothed_bass += (self.target_bass - self.smoothed_bass) * bk;
+    }
+
+    /// 平滑后的低频能量（0~1，只读）。
+    pub fn bass_level(&self) -> f32 {
+        self.smoothed_bass
     }
 
     /// 展示高度（只读）。
@@ -158,6 +180,8 @@ impl VisualizerState {
         self.peaks.iter_mut().for_each(|v| *v = 0.0);
         self.target_heights.iter_mut().for_each(|v| *v = 0.0);
         self.target_peaks.iter_mut().for_each(|v| *v = 0.0);
+        self.target_bass = 0.0;
+        self.smoothed_bass = 0.0;
         self.since_last_frame = f32::INFINITY;
         self.idle_clock = 0.0;
     }
@@ -202,6 +226,7 @@ mod tests {
         SpectrumFrame {
             heights: heights.to_vec(),
             peaks: peaks.to_vec(),
+            bass: 0.0,
         }
     }
 
@@ -336,5 +361,37 @@ mod tests {
             state.tick(0.016);
         }
         assert!(state.heights().iter().all(|h| *h == 0.0));
+    }
+
+    #[test]
+    fn bass_ema_converges_and_decays_smoothly() {
+        let mut state = VisualizerState::new(2);
+        let mut f = frame(&[0.5, 0.5], &[0.5, 0.5]);
+        f.bass = 0.8;
+        state.push_frame(&f);
+        // 单步：向目标靠近但远未到达（EMA 防抖）
+        state.tick(0.016);
+        let after_one = state.bass_level();
+        assert!(after_one > 0.0 && after_one < 0.4, "单步不应过冲: {after_one}");
+        // 多步收敛到目标
+        for _ in 0..60 {
+            state.tick(0.016);
+        }
+        assert!(
+            (state.bass_level() - 0.8).abs() < 0.02,
+            "~1s 后应收敛到 0.8，实际 {}",
+            state.bass_level()
+        );
+        // 目标归零：衰减同样平滑（约 2 倍 tau 后仍有余值）
+        f.bass = 0.0;
+        state.push_frame(&f);
+        for _ in 0..8 {
+            state.tick(0.016);
+        }
+        let decaying = state.bass_level();
+        assert!(
+            decaying > 0.2 && decaying < 0.8,
+            "衰减应渐进而非跳零，实际 {decaying}"
+        );
     }
 }
