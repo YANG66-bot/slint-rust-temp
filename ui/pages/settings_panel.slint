@@ -1,0 +1,469 @@
+// 桌面音频可视化「设置面板」——深色半透明亚克力卡片，两栏布局。
+//
+// 左栏：位置 / 尺寸输入、整体透明度、颜色渐变调色板、系统选项；
+// 右栏：样式预设、7 项频谱参数滑条、功能开关、底部作者信息与操作按钮。
+//
+// 设计约定：
+// - 所有可交互项均以 `in-out property` 暴露，便于 Rust 端双向绑定；
+// - 三个动作按钮各对应一个 callback，Enter/Esc 快捷键由 Rust 侧或
+//   窗口事件循环绑定（避免与 LineEdit 的按键处理冲突）；
+// - 复用型元素拆成子组件：NumberField / LabeledSlider / ColorPaletteRow。
+
+import { LineEdit, Slider, CheckBox, Button, SpinBox } from "std-widgets.slint";
+
+// 面板主题令牌（与视觉稿一致的亚克力配色）。
+export global SettingsTheme {
+    out property <color> card-bg: rgba(18, 18, 22, 0.85);
+    out property <color> card-border: rgba(255, 255, 255, 0.12);
+    out property <color> field-bg: rgba(255, 255, 255, 0.06);
+    out property <color> text: #F2F2F5;
+    out property <color> text-dim: #B8B8C4;
+    out property <color> accent: #6FA8FF;
+    out property <length> radius: 12px;
+    out property <length> font-base: 13px;
+    out property <length> row-height: 30px;
+}
+
+// 单个颜色停靠点（调色板一行）。
+export struct ColorStop {
+    enabled: bool,
+    hex: string,
+    color: color,
+}
+
+// ---- 子组件：带前缀标签的整数输入框 ----
+component NumberField inherits Rectangle {
+    in property <string> label: "";
+    in-out property <int> value: 0;
+
+    width: 100%;
+    height: SettingsTheme.row-height;
+
+    HorizontalLayout {
+        spacing: 6px;
+        Text {
+            text: root.label;
+            color: SettingsTheme.text-dim;
+            font-size: SettingsTheme.font-base;
+            vertical-alignment: center;
+        }
+        SpinBox {
+            value <=> root.value;
+            minimum: 0;
+            maximum: 999999;
+            horizontal-stretch: 1;
+        }
+    }
+}
+
+// ---- 子组件：分组标题 ----
+component SectionHeader inherits Rectangle {
+    in property <string> title: "";
+    width: 100%;
+    height: 24px;
+    Text {
+        x: 0;
+        width: parent.width;
+        vertical-alignment: center;
+        text: root.title;
+        color: SettingsTheme.text;
+        font-size: SettingsTheme.font-base;
+        font-weight: 700;
+    }
+}
+
+// ---- 子组件：索引标签 + 标题 + 滑条 + 数值读出 ----
+component LabeledSlider inherits Rectangle {
+    in property <int> index: 0;
+    in property <bool> show-index: true;
+    in property <string> title: "";
+    in property <string> param-name: "";
+    in-out property <float> value: 0;
+    in property <float> minimum: 0;
+    in property <float> maximum: 1;
+    in property <float> step: 0.01;
+    // 读出精度：1 = 整数，100 = 两位小数
+    in property <float> scale: 100;
+    // 拖动 / 释放时上报 (参数名, 值)，供上层实时通知 Rust
+    callback value-changed(string, float);
+
+    width: 100%;
+    height: SettingsTheme.row-height;
+
+    // 数值读出字符串（四舍五入到 scale 精度并补零到两位）
+    property <int> denom: Math.round(root.scale);
+    property <int> scaled: Math.round(root.value * root.scale);
+    property <int> whole: root.scaled / root.denom;
+    property <int> frac: root.scaled - root.whole * root.denom;
+    property <string> readout: root.denom <= 1 ?
+        "\{root.whole}" :
+        "\{root.whole}.\{root.frac < 10 ? "0" : ""}\{root.frac}";
+
+    HorizontalLayout {
+        spacing: 8px;
+        Text {
+            visible: root.show-index;
+            text: "\{root.index}.";
+            color: SettingsTheme.text-dim;
+            font-size: SettingsTheme.font-base;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.title;
+            color: SettingsTheme.text;
+            font-size: SettingsTheme.font-base;
+            vertical-alignment: center;
+        }
+        Slider {
+            horizontal-stretch: 1;
+            minimum: root.minimum;
+            maximum: root.maximum;
+            step: root.step;
+            value <=> root.value;
+            changed(val) => { root.value-changed(root.param-name, val); }
+        }
+        Text {
+            min-width: 46px;
+            text: root.readout;
+            color: SettingsTheme.accent;
+            font-size: SettingsTheme.font-base;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// ---- 子组件：调色板一行（复选框 + HEX 文本框 + 颜色预览块） ----
+component ColorPaletteRow inherits Rectangle {
+    in property <int> index: 0;
+    in property <bool> enabled: true;
+    in property <string> hex: "#FFFFFF";
+    in property <color> swatch: #FFFFFF;
+    callback edited(int, bool, string);
+
+    width: 100%;
+    height: SettingsTheme.row-height;
+
+    HorizontalLayout {
+        spacing: 8px;
+        CheckBox {
+            checked: root.enabled;
+            toggled => { root.edited(root.index, self.checked, root.hex); }
+        }
+        LineEdit {
+            text: root.hex;
+            horizontal-stretch: 1;
+            accepted => { root.edited(root.index, root.enabled, self.text); }
+        }
+        Rectangle {
+            width: 44px;
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: SettingsTheme.card-border;
+            background: root.swatch;
+        }
+    }
+}
+
+// ---- 主面板 ----
+export component SettingsPanel inherits Window {
+    title: "可视化设置 · Visualizer Settings";
+    no-frame: true;
+    background: transparent;
+    preferred-width: 760px;
+    preferred-height: 520px;
+    min-width: 640px;
+    min-height: 460px;
+
+    // ===== 左栏：位置 / 尺寸 =====
+    in-out property <int> pos-x: 1280;
+    in-out property <int> pos-y: 1200;
+    in-out property <int> size-width: 1500;
+    in-out property <int> size-height: 500;
+
+    // ===== 左栏：整体透明度 =====
+    in-out property <float> master-opacity: 0.85;
+
+    // ===== 左栏：颜色渐变调色板 =====
+    in-out property <[ColorStop]> palette-stops: [
+        { enabled: true, hex: "#FFE4E1", color: #FFE4E1 },
+        { enabled: true, hex: "#FFC0CB", color: #FFC0CB },
+        { enabled: true, hex: "#DA70D6", color: #DA70D6 },
+        { enabled: true, hex: "#00008B", color: #00008B },
+        { enabled: true, hex: "#00FFFF", color: #00FFFF },
+        { enabled: false, hex: "#FFFFFF", color: #FFFFFF },
+        { enabled: false, hex: "#FFFFFF", color: #FFFFFF },
+    ];
+    // 调色板某行被编辑（索引，是否启用，HEX）
+    callback palette-changed(int, bool, string);
+
+    // ===== 左栏：系统选项 =====
+    in-out property <bool> auto-start: false;
+    in-out property <bool> hide-on-launch: false;
+    in-out property <bool> click-through: false;
+    in-out property <bool> game-mode: false;
+
+    // ===== 右栏：样式预设（0=自定义，1..5=默认样式） =====
+    in-out property <int> active-preset: 0;
+
+    // ===== 右栏：频谱参数 =====
+    in-out property <float> bar-count: 92;
+    in-out property <float> bar-width: 0.61;
+    in-out property <float> bar-radius: 0.38;
+    in-out property <float> bar-gain: 2.30;
+    in-out property <float> peak-gain: 3.00;
+    in-out property <float> peak-amplitude: 0.25;
+    in-out property <float> smoothing: 0.90;
+
+    // ===== 右栏：功能开关 =====
+    in-out property <bool> enable-reflection: true;
+    in-out property <bool> enable-peak-line: true;
+
+    // ===== 底部信息 =====
+    in property <string> author: "OmarUmar";
+    in property <string> version: "v2.1.1";
+
+    // ===== 动作回调 =====
+    callback restore-defaults();
+    callback save-settings();
+    callback cancel-settings();
+
+    // 参数实时变更通知（滑条拖动 / 释放即触发）：(参数名, 新值)
+    callback parameter-changed(string, float);
+    // 开关实时变更通知：(参数名, 是否启用)
+    callback toggle-changed(string, bool);
+
+    // 两个功能开关变化时即时上报（含“恢复默认”等程序式回写）
+    changed enable-reflection => { root.toggle-changed("enable-reflection", root.enable-reflection); }
+    changed enable-peak-line => { root.toggle-changed("enable-peak-line", root.enable-peak-line); }
+
+    // 无边框窗口拖动热区：声明为窗口的第一个子元素 = 最底层 z-order。
+    // 卡片 Rectangle 与交互控件都在其上层；上层非交互区域对鼠标事件透明，
+    // 命中控件时由控件处理，命中空白处时下探到本热区实现拖动——不再遮挡控件。
+    WindowMoveArea { }
+
+    // 亚克力卡片底板（四周留边，露出透明窗口背景）
+    Rectangle {
+        x: 6px;
+        y: 6px;
+        width: parent.width - 12px;
+        height: parent.height - 12px;
+        border-radius: SettingsTheme.radius;
+        border-width: 1px;
+        border-color: SettingsTheme.card-border;
+        background: SettingsTheme.card-bg;
+
+        HorizontalLayout {
+            padding: 18px;
+            spacing: 22px;
+
+            // ================= 左栏 =================
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 10px;
+
+                SectionHeader { title: "位置 / 尺寸"; }
+                NumberField { label: "X"; value <=> root.pos-x; }
+                NumberField { label: "Y"; value <=> root.pos-y; }
+                NumberField { label: "W"; value <=> root.size-width; }
+                NumberField { label: "H"; value <=> root.size-height; }
+
+                SectionHeader { title: "透明度"; }
+                LabeledSlider {
+                    show-index: false;
+                    title: "整体";
+                    param-name: "master-opacity";
+                    value <=> root.master-opacity;
+                    minimum: 0;
+                    maximum: 1;
+                    step: 0.01;
+                    scale: 100;
+                    value-changed(n, v) => { root.parameter-changed(n, v); }
+                }
+
+                SectionHeader { title: "颜色"; }
+                for stop[i] in root.palette-stops: ColorPaletteRow {
+                    index: i;
+                    enabled: stop.enabled;
+                    hex: stop.hex;
+                    swatch: stop.color;
+                    edited(idx, en, hx) => { root.palette-changed(idx, en, hx); }
+                }
+
+                SectionHeader { title: "系统选项"; }
+                CheckBox {
+                    text: "开机启动";
+                    checked <=> root.auto-start;
+                }
+                CheckBox {
+                    text: "启动时隐藏设置窗口";
+                    checked <=> root.hide-on-launch;
+                }
+                CheckBox {
+                    text: "鼠标点击穿透";
+                    checked <=> root.click-through;
+                }
+                CheckBox {
+                    text: "游戏模式";
+                    checked <=> root.game-mode;
+                }
+
+                Rectangle { vertical-stretch: 1; }
+            }
+
+            // ================= 右栏 =================
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 8px;
+
+                SectionHeader { title: "样式"; }
+                // 互斥的预设选择（点击其一即设定 active-preset），3 列 x 2 行
+                HorizontalLayout {
+                    spacing: 12px;
+                    VerticalLayout {
+                        spacing: 2px;
+                        CheckBox {
+                            text: "自定义样式";
+                            checked: root.active-preset == 0;
+                            toggled => { if self.checked { root.active-preset = 0; } }
+                        }
+                        CheckBox {
+                            text: "默认样式三";
+                            checked: root.active-preset == 3;
+                            toggled => { if self.checked { root.active-preset = 3; } }
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 2px;
+                        CheckBox {
+                            text: "默认样式一";
+                            checked: root.active-preset == 1;
+                            toggled => { if self.checked { root.active-preset = 1; } }
+                        }
+                        CheckBox {
+                            text: "默认样式四";
+                            checked: root.active-preset == 4;
+                            toggled => { if self.checked { root.active-preset = 4; } }
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 2px;
+                        CheckBox {
+                            text: "默认样式二";
+                            checked: root.active-preset == 2;
+                            toggled => { if self.checked { root.active-preset = 2; } }
+                        }
+                        CheckBox {
+                            text: "默认样式五";
+                            checked: root.active-preset == 5;
+                            toggled => { if self.checked { root.active-preset = 5; } }
+                        }
+                    }
+                }
+
+                SectionHeader { title: "频谱参数"; }
+                LabeledSlider {
+                    index: 1; title: "矩形柱数量";
+                    param-name: "bar-count";
+                    value <=> root.bar-count;
+                    minimum: 16; maximum: 192; step: 1; scale: 1;
+                    value-changed(n, v) => { root.parameter-changed(n, v); }
+                }
+                LabeledSlider {
+                    index: 2; title: "矩形柱宽度";
+                    param-name: "bar-width";
+                    value <=> root.bar-width;
+                    minimum: 0.1; maximum: 1; step: 0.01; scale: 100;
+                    value-changed(n, v) => { root.parameter-changed(n, v); }
+                }
+                LabeledSlider {
+                    index: 3; title: "矩形柱圆角";
+                    param-name: "bar-radius";
+                    value <=> root.bar-radius;
+                    minimum: 0; maximum: 1; step: 0.01; scale: 100;
+                    value-changed(n, v) => { root.parameter-changed(n, v); }
+                }
+                LabeledSlider {
+                    index: 4; title: "矩形柱增益";
+                    param-name: "bar-gain";
+                    value <=> root.bar-gain;
+                    minimum: 0.1; maximum: 5; step: 0.01; scale: 100;
+                    value-changed(n, v) => { root.parameter-changed(n, v); }
+                }
+                LabeledSlider {
+                    index: 5; title: "横线增益";
+                    param-name: "peak-gain";
+                    value <=> root.peak-gain;
+                    minimum: 0.1; maximum: 5; step: 0.01; scale: 100;
+                    value-changed(n, v) => { root.parameter-changed(n, v); }
+                }
+                LabeledSlider {
+                    index: 6; title: "横线幅度";
+                    param-name: "peak-amplitude";
+                    value <=> root.peak-amplitude;
+                    minimum: 0; maximum: 1; step: 0.01; scale: 100;
+                    value-changed(n, v) => { root.parameter-changed(n, v); }
+                }
+                LabeledSlider {
+                    index: 7; title: "平滑处理";
+                    param-name: "smoothing";
+                    value <=> root.smoothing;
+                    minimum: 0; maximum: 0.99; step: 0.01; scale: 100;
+                    value-changed(n, v) => { root.parameter-changed(n, v); }
+                }
+
+                SectionHeader { title: "功能块启用"; }
+                HorizontalLayout {
+                    spacing: 16px;
+                    CheckBox {
+                        text: "启用倒影";
+                        checked <=> root.enable-reflection;
+                    }
+                    CheckBox {
+                        text: "启用横线";
+                        checked <=> root.enable-peak-line;
+                    }
+                }
+
+                Rectangle { vertical-stretch: 1; }
+
+                // ===== 底部：作者 / 版本 + 操作按钮 =====
+                Rectangle {
+                    width: 100%;
+                    height: 1px;
+                    background: SettingsTheme.card-border;
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "作者：\{root.author}";
+                            color: SettingsTheme.text-dim;
+                            font-size: SettingsTheme.font-base;
+                        }
+                        Text {
+                            text: "当前版本：\{root.version}";
+                            color: SettingsTheme.text-dim;
+                            font-size: SettingsTheme.font-base;
+                        }
+                        Rectangle { vertical-stretch: 1; }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    Button {
+                        text: "恢复默认设置";
+                        clicked => { root.restore-defaults(); }
+                    }
+                    Button {
+                        text: "保存 (Enter)";
+                        clicked => { root.save-settings(); }
+                    }
+                    Button {
+                        text: "取消 (Esc)";
+                        clicked => { root.cancel-settings(); }
+                    }
+                }
+            }
+        }
+    }
+}

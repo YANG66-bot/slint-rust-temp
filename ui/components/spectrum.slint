@@ -35,14 +35,17 @@ component ReflectionBar inherits Rectangle {
     in property <length> reflect-y: 0px;
     // 倒影可用高度
     in property <length> reflect-max: 0px;
+    // 运行时柱宽 / 圆角比例（与主柱一致）
+    in property <float> width-ratio: Metrics.bar-width-ratio;
+    in property <float> roundness: Metrics.bar-roundness;
 
     x: self.slot-width * self.slot-index + (self.slot-width - self.width) / 2;
-    width: self.slot-width * Metrics.bar-width-ratio;
+    width: self.slot-width * self.width-ratio;
 
     // 高度：柱高 × 倒影比例，且不超过倒影可用空间
     height: min(self.reflect-max, self.reflect-max * self.bar-height);
     y: self.reflect-y;
-    border-radius: min(self.width, self.height) * Metrics.bar-roundness;
+    border-radius: min(self.width, self.height) * self.roundness;
     background: @linear-gradient(180deg, self.bar-color, transparent);
     opacity: Metrics.reflection-opacity;
 }
@@ -53,6 +56,13 @@ export component Spectrum inherits Rectangle {
     // 是否启用倒影与基线（来自配置）
     in property <bool> show-reflection: true;
     in property <bool> show-baseline: true;
+    // 运行时几何 / 样式（由 Rust 每帧从共享配置写入，默认取主题值）
+    in property <float> bar-width-ratio: Metrics.bar-width-ratio;
+    in property <float> bar-roundness: Metrics.bar-roundness;
+    in property <length> peak-gap: Metrics.peak-gap;
+    in property <float> master-opacity: Metrics.master-opacity;
+
+    opacity: root.master-opacity;
 
     // 柱数与槽位几何（由容器统一计算后传给每根柱）
     property <int> bar-count: root.bars.length;
@@ -81,6 +91,8 @@ export component Spectrum inherits Rectangle {
         slot-index: i;
         slot-width: root.slot-width;
         baseline-y: root.baseline-y;
+        width-ratio: root.bar-width-ratio;
+        roundness: root.bar-roundness;
     }
 
     // ---- 峰点 ----
@@ -90,6 +102,8 @@ export component Spectrum inherits Rectangle {
         slot-index: i;
         slot-width: root.slot-width;
         baseline-y: root.baseline-y;
+        width-ratio: root.bar-width-ratio;
+        peak-gap: root.peak-gap;
     }
 
     // ---- 倒影 ----
@@ -100,6 +114,8 @@ export component Spectrum inherits Rectangle {
         slot-width: root.slot-width;
         reflect-y: root.baseline-y + root.baseline-h;
         reflect-max: root.reflection-area;
+        width-ratio: root.bar-width-ratio;
+        roundness: root.bar-roundness;
     }
 
     // ---- 底部基线 ----

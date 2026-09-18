@@ -15,14 +15,18 @@ export component SpectrumPeak inherits Rectangle {
     in property <length> slot-width: 0px;
     // 底部对齐的基线 y
     in property <length> baseline-y: 0px;
+    // 运行时柱宽占槽位比例（与主柱保持一致）
+    in property <float> width-ratio: Metrics.bar-width-ratio;
+    // 峰点与柱顶的间距（可由面板实时调节）
+    in property <length> peak-gap: Metrics.peak-gap;
 
     x: self.slot-width * self.slot-index + (self.slot-width - self.width) / 2;
-    width: self.slot-width * Metrics.bar-width-ratio;
+    width: self.slot-width * self.width-ratio;
 
     height: Metrics.peak-height;
     // 峰点悬浮于柱顶上方：基线 - 峰值高度 - 间隙 - 自身厚度
     y: max(0px, self.baseline-y - self.peak-height * self.baseline-y
-        - Metrics.peak-gap - self.height);
+        - self.peak-gap - self.height);
 
     border-radius: self.height / 2;
     background: self.peak-color;

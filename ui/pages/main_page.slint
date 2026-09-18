@@ -10,6 +10,11 @@ export component MainPage inherits Rectangle {
     // 视觉开关（透传至 Spectrum）
     in property <bool> show-reflection: true;
     in property <bool> show-baseline: true;
+    // 运行时几何 / 样式（透传至 Spectrum）
+    in property <float> bar-width-ratio;
+    in property <float> bar-roundness;
+    in property <length> peak-gap;
+    in property <float> master-opacity;
 
     width: 100%;
     height: 100%;
@@ -21,6 +26,10 @@ export component MainPage inherits Rectangle {
         bars: root.bars;
         show-reflection: root.show-reflection;
         show-baseline: root.show-baseline;
+        bar-width-ratio: root.bar-width-ratio;
+        bar-roundness: root.bar-roundness;
+        peak-gap: root.peak-gap;
+        master-opacity: root.master-opacity;
     }
 
     // 全窗口拖动热区：按住任意位置拖动即可移动挂件（no-frame 窗口的

@@ -31,6 +31,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # 原生"打开文件"对话框：Slint 无内置文件选择器，加载本地音频必需
 rfd = "0.15"
+# 系统托盘图标 + 菜单（设置面板入口）；Windows 原生实现，关闭 Linux 专属特性
+tray-icon = { version = "0.25", default-features = false }
 
 [build-dependencies]
 slint-build = "1.16.1"

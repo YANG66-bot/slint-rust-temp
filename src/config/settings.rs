@@ -22,6 +22,8 @@ pub struct Settings {
     pub audio: AudioSettings,
     pub spectrum: SpectrumSettings,
     pub visual: VisualSettings,
+    /// 设置面板的完整状态（忠实持久化面板字段）。
+    pub panel: PanelSettings,
 }
 
 impl Settings {
@@ -75,6 +77,7 @@ impl Settings {
             },
             spectrum: self.spectrum.sanitized(),
             visual: self.visual.sanitized(),
+            panel: self.panel.sanitized(),
         }
     }
 }
@@ -252,6 +255,222 @@ impl VisualSettings {
             reflection_opacity: self.reflection_opacity.clamp(0.0, 0.8),
             baseline: self.baseline,
             idle_animation: self.idle_animation,
+        }
+    }
+}
+
+/// 调色板停靠点：一个颜色位（启用标志 + HEX）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaletteStop {
+    pub enabled: bool,
+    pub hex: String,
+}
+
+/// 设置面板的完整状态（与 .slint 面板 1:1 映射）。
+///
+/// 面板是可持久化的 UI 真值；其中与引擎功能重叠的字段
+/// （柱数 / 柱增益 / 倒影 / 基线 / 调色板）在保存时镜像写回
+/// `spectrum` / `visual`，供下次启动生效。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PanelSettings {
+    // 位置 / 尺寸
+    pub pos_x: i32,
+    pub pos_y: i32,
+    pub size_width: i32,
+    pub size_height: i32,
+    // 整体透明度
+    pub master_opacity: f32,
+    // 颜色渐变调色板
+    pub palette: Vec<PaletteStop>,
+    // 系统选项
+    pub auto_start: bool,
+    pub hide_on_launch: bool,
+    pub click_through: bool,
+    pub game_mode: bool,
+    // 样式预设（0=自定义，1..5=默认样式）
+    pub active_preset: i32,
+    // 频谱参数
+    pub bar_count: f32,
+    pub bar_width: f32,
+    pub bar_radius: f32,
+    pub bar_gain: f32,
+    pub peak_gain: f32,
+    pub peak_amplitude: f32,
+    pub smoothing: f32,
+    // 功能开关
+    pub enable_reflection: bool,
+    pub enable_peak_line: bool,
+}
+
+impl Default for PanelSettings {
+    fn default() -> Self {
+        Self {
+            pos_x: 1280,
+            pos_y: 1200,
+            size_width: 1500,
+            size_height: 500,
+            master_opacity: 0.85,
+            palette: DEFAULT_COLORS
+                .iter()
+                .map(|h| PaletteStop {
+                    enabled: true,
+                    hex: h.to_string(),
+                })
+                .collect(),
+            auto_start: false,
+            hide_on_launch: false,
+            click_through: false,
+            game_mode: false,
+            active_preset: 0,
+            bar_count: 88.0,
+            bar_width: 0.61,
+            bar_radius: 0.38,
+            bar_gain: 1.0,
+            peak_gain: 3.0,
+            peak_amplitude: 0.25,
+            smoothing: 0.90,
+            enable_reflection: true,
+            enable_peak_line: true,
+        }
+    }
+}
+
+impl PanelSettings {
+    fn sanitized(mut self) -> PanelSettings {
+        let palette: Vec<PaletteStop> = self
+            .palette
+            .into_iter()
+            .filter(|s| parse_hex_color(&s.hex).is_some())
+            .collect();
+        self.palette = if palette.len() >= 2 {
+            palette
+        } else {
+            PanelSettings::default().palette
+        };
+        self.master_opacity = self.master_opacity.clamp(0.05, 1.0);
+        self.active_preset = self.active_preset.clamp(0, 5);
+        self.bar_count = self.bar_count.clamp(16.0, 192.0);
+        self.bar_width = self.bar_width.clamp(0.1, 1.0);
+        self.bar_radius = self.bar_radius.clamp(0.0, 1.0);
+        self.bar_gain = self.bar_gain.clamp(0.1, 5.0);
+        self.peak_gain = self.peak_gain.clamp(0.1, 5.0);
+        self.peak_amplitude = self.peak_amplitude.clamp(0.0, 1.0);
+        self.smoothing = self.smoothing.clamp(0.0, 0.99);
+        self
+    }
+
+    /// 按参数名实时更新一个浮点字段（含范围夹取）。
+    /// 名称同时接受 slint kebab-case 与 rust snake_case；未知名忽略。
+    pub fn set_param(&mut self, name: &str, v: f32) {
+        match name {
+            "master-opacity" | "master_opacity" => self.master_opacity = v.clamp(0.05, 1.0),
+            "bar-count" | "bar_count" => self.bar_count = v.clamp(16.0, 192.0),
+            "bar-width" | "bar_width" => self.bar_width = v.clamp(0.1, 1.0),
+            "bar-radius" | "bar_radius" => self.bar_radius = v.clamp(0.0, 1.0),
+            "bar-gain" | "bar_gain" => self.bar_gain = v.clamp(0.1, 5.0),
+            "peak-gain" | "peak_gain" => self.peak_gain = v.clamp(0.1, 5.0),
+            "peak-amplitude" | "peak_amplitude" => self.peak_amplitude = v.clamp(0.0, 1.0),
+            "smoothing" => self.smoothing = v.clamp(0.0, 0.99),
+            _ => {}
+        }
+    }
+}
+
+/// 实时渲染配置：渲染线程与 UI 刷新回路每帧读取的可视化参数。
+///
+/// 与持久化的 [`Settings`] 分离：`Settings` 是落盘真值（下次启动生效），
+/// 而本结构是“当前正在呈现什么”的运行时快照，由设置面板回调写入、
+/// 由 60Hz 刷新定时器每帧读取并作用于 Slint。包装在 `Arc<RwLock<..>>`
+/// 中作为跨模块共享的单一真值（便于未来分析线程也可读取）。
+#[derive(Debug, Clone)]
+pub struct VisualizerConfig {
+    /// 展示柱数（可能与分析器固定分辨率不同，由展示层重采样对齐）。
+    pub bar_count: usize,
+    /// 柱宽占槽位比例（0.1~1）。
+    pub bar_width: f32,
+    /// 柱圆角比例（0~1）。
+    pub bar_radius: f32,
+    /// 柱高增益（UI 侧乘法，分析器已预归一化到 0..1）。
+    pub bar_gain: f32,
+    /// 峰值增益。
+    pub peak_gain: f32,
+    /// 峰值幅度（0~1，映射为峰点与柱顶间距）。
+    pub peak_amp: f32,
+    /// 平滑系数（0~0.99，映射为插值时间常数）。
+    pub smoothing: f32,
+    /// 整体不透明度（0.05~1）。
+    pub opacity: f32,
+    /// 启用倒影。
+    pub enable_reflection: bool,
+    /// 启用峰值基线（横线）。
+    pub enable_peak_line: bool,
+    /// 调色板（启用的 HEX 列表）。
+    pub colors: Vec<String>,
+}
+
+impl VisualizerConfig {
+    /// 从持久化配置构建初始实时快照（面板优先，回退 visual/spectrum）。
+    pub fn from_settings(s: &Settings) -> Self {
+        let p = &s.panel;
+        let enabled: Vec<String> = p
+            .palette
+            .iter()
+            .filter(|x| x.enabled)
+            .map(|x| x.hex.clone())
+            .collect();
+        let colors = if enabled.len() >= 2 {
+            enabled
+        } else {
+            s.visual.colors.clone()
+        };
+        Self {
+            bar_count: p.bar_count.round().clamp(16.0, 192.0) as usize,
+            bar_width: p.bar_width,
+            bar_radius: p.bar_radius,
+            bar_gain: p.bar_gain,
+            peak_gain: p.peak_gain,
+            peak_amp: p.peak_amplitude,
+            smoothing: p.smoothing,
+            opacity: p.master_opacity,
+            enable_reflection: p.enable_reflection,
+            enable_peak_line: p.enable_peak_line,
+            colors,
+        }
+    }
+
+    /// 峰点与柱顶间距（逻辑像素）：peak_amp 0~1 → 2~16px。
+    pub fn peak_gap_px(&self) -> f32 {
+        2.0 + self.peak_amp.clamp(0.0, 1.0) * 14.0
+    }
+
+    /// 插值时间常数（秒）：smoothing 0~0.99 → 0.006~0.22s。
+    pub fn time_constant(&self) -> f32 {
+        0.006 + self.smoothing.clamp(0.0, 0.99) * 0.22
+    }
+
+    /// 按参数名实时应用一个滑条值（含范围夹取）。
+    /// 名称同时接受 slint kebab-case 与 rust snake_case；未知名忽略。
+    pub fn set_param(&mut self, name: &str, v: f32) {
+        match name {
+            "master-opacity" | "master_opacity" => self.opacity = v.clamp(0.05, 1.0),
+            "bar-count" | "bar_count" => self.bar_count = v.clamp(16.0, 192.0).round() as usize,
+            "bar-width" | "bar_width" => self.bar_width = v.clamp(0.1, 1.0),
+            "bar-radius" | "bar_radius" => self.bar_radius = v.clamp(0.0, 1.0),
+            "bar-gain" | "bar_gain" => self.bar_gain = v.clamp(0.1, 5.0),
+            "peak-gain" | "peak_gain" => self.peak_gain = v.clamp(0.1, 5.0),
+            "peak-amplitude" | "peak_amplitude" => self.peak_amp = v.clamp(0.0, 1.0),
+            "smoothing" => self.smoothing = v.clamp(0.0, 0.99),
+            _ => {}
+        }
+    }
+
+    /// 按参数名实时应用一个开关（倒影 / 横线）。
+    pub fn set_toggle(&mut self, name: &str, on: bool) {
+        match name {
+            "enable-reflection" | "enable_reflection" => self.enable_reflection = on,
+            "enable-peak-line" | "enable_peak_line" => self.enable_peak_line = on,
+            _ => {}
         }
     }
 }

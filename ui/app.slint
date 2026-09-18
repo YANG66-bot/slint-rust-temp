@@ -7,6 +7,11 @@
 import { MainPage } from "pages/main_page.slint";
 import { SpectrumBarData } from "components/spectrum.slint";
 
+// 设置面板：独立顶层窗口，仅重导出以生成 Rust 类型（SettingsPanel::new()），
+// 不作为子元素实例化 → 不会并入挂件窗口树。
+export { SettingsPanel } from "pages/settings_panel.slint";
+export { ColorStop } from "pages/settings_panel.slint";
+
 export component AppWindow inherits Window {
     title: "音乐频谱 · Music Spectrum";
     no-frame: true;
@@ -23,6 +28,11 @@ export component AppWindow inherits Window {
     // 视觉开关（Rust 端按配置写入）
     in-out property <bool> show-reflection: true;
     in-out property <bool> show-baseline: true;
+    // 运行时几何 / 样式（Rust 每帧从共享可视化配置写入）
+    in-out property <float> bar-width-ratio: 0.60;
+    in-out property <float> bar-roundness: 0.45;
+    in-out property <length> peak-gap: 4px;
+    in-out property <float> master-opacity: 0.92;
 
     MainPage {
         width: 100%;
@@ -30,5 +40,9 @@ export component AppWindow inherits Window {
         bars: root.bars;
         show-reflection: root.show-reflection;
         show-baseline: root.show-baseline;
+        bar-width-ratio: root.bar-width-ratio;
+        bar-roundness: root.bar-roundness;
+        peak-gap: root.peak-gap;
+        master-opacity: root.master-opacity;
     }
 }

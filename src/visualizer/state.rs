@@ -81,18 +81,29 @@ impl VisualizerState {
 
     /// 接收一帧分析结果作为新的插值目标。
     ///
-    /// 帧的柱数与当前状态不一致时以较小者为准（配置热切换
-    /// 期间防止越界；柱数变更需由持有方重建状态）。
+    /// 分析器固定分辨率与展示柱数可能不一致（柱数滑条实时改变时），
+    /// 此处按线性插值把帧重采样到展示长度，实现柱数实时可调而无需
+    /// 重启分析线程。长度相同时为恒等拷贝（零开销）。
     pub fn push_frame(&mut self, frame: &SpectrumFrame) {
-        let n = frame.heights.len().min(self.target_heights.len());
-        for (t, &h) in self.target_heights.iter_mut().zip(&frame.heights).take(n) {
-            *t = h;
-        }
-        for (t, &p) in self.target_peaks.iter_mut().zip(&frame.peaks).take(n) {
-            *t = p;
-        }
+        let n = self.target_heights.len();
+        self.target_heights
+            .copy_from_slice(&resample_to(&frame.heights, n));
+        self.target_peaks
+            .copy_from_slice(&resample_to(&frame.peaks, n));
         self.since_last_frame = 0.0;
         self.idle_clock = 0.0;
+    }
+
+    /// 改变展示柱数 `n`：按线性插值重采样当前展示值与目标值，
+    /// 避免柱数变化瞬间的高度跳变。
+    pub fn resize(&mut self, n: usize) {
+        if n == self.heights.len() {
+            return;
+        }
+        self.heights = resample_to(&self.heights, n);
+        self.peaks = resample_to(&self.peaks, n);
+        self.target_heights = resample_to(&self.target_heights, n);
+        self.target_peaks = resample_to(&self.target_peaks, n);
     }
 
     /// 按流逝时间 `dt_secs` 向目标插值一步。
@@ -152,6 +163,37 @@ impl VisualizerState {
     }
 }
 
+/// 把 `src` 线性重采样到长度 `n`。长度相同直接返回副本；
+/// 空输入或 `n == 0` 返回 `n` 个 0；单点输入返回 `n` 个相同值。
+fn resample_to(src: &[f32], n: usize) -> Vec<f32> {
+    if src.len() == n {
+        return src.to_vec();
+    }
+    if n == 0 {
+        return Vec::new();
+    }
+    if src.is_empty() {
+        return vec![0.0; n];
+    }
+    if src.len() == 1 {
+        return vec![src[0]; n];
+    }
+    let last = src.len() - 1;
+    (0..n)
+        .map(|i| {
+            let t = if n == 1 {
+                0.0
+            } else {
+                i as f32 / (n - 1) as f32
+            } * last as f32;
+            let i0 = t.floor() as usize;
+            let i1 = (i0 + 1).min(last);
+            let f = t - i0 as f32;
+            src[i0] + (src[i1] - src[i0]) * f
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,13 +250,34 @@ mod tests {
     }
 
     #[test]
-    fn shorter_frame_data_is_handled_safely() {
+    fn shorter_frame_is_resampled_to_display_length() {
         let mut state = VisualizerState::new(8);
-        state.push_frame(&frame(&[0.5], &[0.5])); // 帧只有 1 根柱
+        state.push_frame(&frame(&[0.5], &[0.5])); // 帧只有 1 根柱 → 重采样为常量
         assert_eq!(state.bar_count(), 8);
-        state.tick(0.016);
-        assert!((state.heights()[0] - 0.5f32 * 0.58).abs() < 0.1);
-        assert_eq!(state.heights()[1], 0.0);
+        for _ in 0..40 {
+            state.tick(0.016);
+        }
+        // 单点帧均匀重采样：所有柱应收敛到 0.5
+        assert!(
+            state.heights().iter().all(|h| (h - 0.5).abs() < 0.02),
+            "单点帧应重采样为常量，实际 {:?}",
+            state.heights()
+        );
+    }
+
+    #[test]
+    fn resize_preserves_shape_by_resampling() {
+        let mut state = VisualizerState::new(4);
+        state.push_frame(&frame(&[0.0, 0.33, 0.66, 1.0], &[0.0, 0.33, 0.66, 1.0]));
+        for _ in 0..40 {
+            state.tick(0.016);
+        }
+        state.resize(8);
+        assert_eq!(state.bar_count(), 8);
+        // 重采样后单调不减，首尾仍接近 0 / 1
+        let h = state.heights();
+        assert!(h.windows(2).all(|w| w[1] >= w[0] - 1e-3), "应保序：{:?}", h);
+        assert!(h[0] < 0.1 && h[7] > 0.9, "端点应保留，实际 {:?}", h);
     }
 
     #[test]

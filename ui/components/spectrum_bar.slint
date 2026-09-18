@@ -16,16 +16,20 @@ export component SpectrumBar inherits Rectangle {
     in property <length> slot-width: 0px;
     // 底部对齐的基线 y（频谱底部）
     in property <length> baseline-y: 0px;
+    // 运行时柱宽占槽位比例（可由设置面板实时调节，默认取主题值）
+    in property <float> width-ratio: Metrics.bar-width-ratio;
+    // 运行时圆角比例
+    in property <float> roundness: Metrics.bar-roundness;
 
     // 槽位几何：柱体居中于槽内
     x: self.slot-width * self.slot-index + (self.slot-width - self.width) / 2;
-    width: self.slot-width * Metrics.bar-width-ratio;
+    width: self.slot-width * self.width-ratio;
 
     // 底部严格对齐：y = 基线 - 高度
     height: max(Metrics.spectrum-min-bar-height, self.baseline-y * self.bar-height);
     y: self.baseline-y - self.height;
 
-    border-radius: min(self.width, self.height) * Metrics.bar-roundness;
+    border-radius: min(self.width, self.height) * self.roundness;
     background: self.bar-color;
     opacity: Metrics.bar-opacity;
 }
