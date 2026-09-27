@@ -98,7 +98,8 @@ fn write_panel(panel: &SettingsPanel, palette: &Rc<VecModel<ColorStop>>, p: &Pan
 /// 把面板中与引擎重叠的字段镜像进 spectrum / visual。
 fn mirror_into_settings(s: &mut Settings, p: &PanelSettings) {
     s.spectrum.bar_count = p.bar_count.round().clamp(16.0, 192.0) as usize;
-    s.spectrum.height_scale = p.bar_gain;
+    // 柱增益只允许在 UI 侧（bar_gain）应用一次；
+    // 曾经镜像进 spectrum.height_scale 会导致双重放大、全谱饱和成平线
     s.visual.reflection = p.enable_reflection;
     s.visual.baseline = p.enable_peak_line;
     let colors: Vec<String> = p
